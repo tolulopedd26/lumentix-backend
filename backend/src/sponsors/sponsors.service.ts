@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SponsorTier } from './entities/sponsor-tier.entity';
 import { SponsorContribution, ContributionStatus } from './entities/sponsor-contribution.entity';
+import { ContributionsService } from './contributions.service';
 import { EventsService } from '../events/events.service';
 import { CreateSponsorTierDto } from './dto/create-sponsor-tier.dto';
 import { UpdateSponsorTierDto } from './dto/update-sponsor-tier.dto';
@@ -30,10 +31,21 @@ export class SponsorsService {
     @InjectRepository(Event)
     private readonly eventRepository: Repository<Event>,
     private readonly eventsService: EventsService,
+    private readonly contributionsService: ContributionsService,
     private readonly escrowService: EscrowService,
     private readonly stellarService: StellarService,
     private readonly auditService: AuditService,
   ) {}
+
+  async confirmSponsorPayment(transactionHash: string): Promise<boolean> {
+    try {
+      await this.contributionsService.confirmContribution(transactionHash);
+      return true;
+    } catch (err) {
+      if (err instanceof NotFoundException) return false;
+      throw err;
+    }
+  }
 
   async createTier(
     eventId: string,
