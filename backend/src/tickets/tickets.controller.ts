@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Param,
   Post,
   Req,
@@ -15,6 +16,8 @@ import {
   ApiResponse,
   ApiQuery,
 } from '@nestjs/swagger';
+import { IsNumber, IsString, Min } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles, Role } from '../common/decorators/roles.decorator';
@@ -24,6 +27,15 @@ import { IssueTicketDto } from './dto/issue-ticket.dto';
 import { BulkIssueTicketDto } from './dto/bulk-issue-ticket.dto';
 import { TransferTicketDto } from './dto/transfer-ticket.dto';
 import { TicketEntity } from './entities/ticket.entity';
+
+class ListTicketDto {
+  @ApiProperty() @IsNumber() @Min(0) price: number;
+  @ApiProperty() @IsString() currency: string;
+}
+
+class BuyTicketDto {
+  @ApiProperty() @IsString() transactionHash: string;
+}
 
 @ApiTags('Tickets')
 @ApiBearerAuth()
@@ -87,11 +99,35 @@ export class TicketsController {
     @Body() dto: TransferTicketDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    return this.ticketsService.transferTicket(
-      ticketId,
-      req.user.id,
-      dto.newOwnerId,
-    );
+    return this.ticketsService.transferTicket(ticketId, req.user.id, dto.newOwnerId);
+  }
+}
+
+/** Public controller — no JWT required. */
+@ApiTags('Tickets')
+@Controller('tickets')
+export class TicketsPublicController {
+  constructor(private readonly ticketsService: TicketsService) {}
+
+  @Get('marketplace')
+  @ApiOperation({ summary: 'Browse tickets listed for resale (public)' })
+  @ApiResponse({ status: 200, description: 'Listed tickets' })
+  getMarketplace() {
+    return this.ticketsService.getMarketplace();
+  }
+
+  @Get(':id/verify-status')
+  @ApiOperation({
+    summary: 'Verify ticket validity (public — no JWT required)',
+    description: 'Called by gate scanners. Validates the cryptographic signature and returns ticket status.',
+  })
+  @ApiQuery({ name: 'signature', required: true })
+  @ApiResponse({ status: 200, description: 'Ticket validity status' })
+  async verifyStatus(
+    @Param('id') id: string,
+    @Query('signature') signature: string,
+  ) {
+    return this.ticketsService.getVerifyStatus(id, signature);
   }
 }
 

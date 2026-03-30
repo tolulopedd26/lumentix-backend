@@ -14,6 +14,7 @@ import * as qrcode from 'qrcode';
 
 import { TicketEntity } from './entities/ticket.entity';
 import { TicketSigningService } from './ticket-signing.service';
+import { TicketPdfService } from './ticket-pdf.service';
 import { IssueTicketResponseDto } from './dto/issue-ticket-response.dto';
 import { BulkIssueResultDto } from './dto/bulk-issue-result.dto';
 import { PaymentsService } from '../payments/payments.service';
@@ -33,6 +34,7 @@ export class TicketsService {
     private readonly stellarService: StellarService,
     private readonly configService: ConfigService,
     private readonly ticketSigningService: TicketSigningService,
+    private readonly ticketPdfService: TicketPdfService,
     private readonly notificationService: NotificationService,
     @InjectRepository(Event)
     private readonly eventRepo: Repository<Event>,
@@ -138,6 +140,7 @@ export class TicketsService {
         ticket: existing,
         signature,
         qrCodeDataUrl,
+        pdfUrl: existing.pdfUrl,
         ownerId: existing.ownerId,
         assetCode: existing.assetCode,
         status: existing.status,
@@ -177,11 +180,21 @@ export class TicketsService {
 
     const user = await this.userRepo.findOne({ where: { id: payment.userId } });
     if (user && event) {
+      try {
+        const pdfBuffer = await this.ticketPdfService.generate(saved, event, user, qrCodeDataUrl);
+        pdfUrl = `data:application/pdf;base64,${pdfBuffer.toString('base64')}`;
+        saved.pdfUrl = pdfUrl;
+        await this.ticketRepo.save(saved);
+      } catch {
+        // PDF generation failure is non-fatal
+      }
+
       await this.notificationService.queueTicketEmail({
         userId: user.id,
         email: user.email,
         ticketId: saved.id,
         eventName: event.title,
+        pdfUrl: pdfUrl ?? undefined,
       });
     }
 
@@ -189,6 +202,7 @@ export class TicketsService {
       ticket: saved,
       signature,
       qrCodeDataUrl,
+      pdfUrl,
       ownerId: saved.ownerId,
       assetCode: saved.assetCode,
       status: saved.status,
@@ -274,5 +288,117 @@ export class TicketsService {
 
     ticket.status = 'used';
     return this.ticketRepo.save(ticket);
+  }
+
+  // ── Resale / marketplace ──────────────────────────────────────────────────
+
+  async listTicketForSale(
+    ticketId: string,
+    ownerId: string,
+    price: number,
+    currency: string,
+  ): Promise<TicketEntity> {
+    const ticket = await this.ticketRepo.findOne({ where: { id: ticketId } });
+    if (!ticket) throw new NotFoundException('Ticket not found');
+    if (ticket.ownerId !== ownerId) throw new ForbiddenException();
+    if (ticket.status !== 'valid') throw new BadRequestException('Only valid tickets can be listed');
+    if (ticket.isListed) throw new BadRequestException('Ticket is already listed');
+
+    ticket.isListed = true;
+    ticket.listingPrice = price;
+    ticket.listingCurrency = currency;
+    return this.ticketRepo.save(ticket);
+  }
+
+  async cancelListing(ticketId: string, ownerId: string): Promise<TicketEntity> {
+    const ticket = await this.ticketRepo.findOne({ where: { id: ticketId } });
+    if (!ticket) throw new NotFoundException('Ticket not found');
+    if (ticket.ownerId !== ownerId) throw new ForbiddenException();
+
+    ticket.isListed = false;
+    ticket.listingPrice = null;
+    ticket.listingCurrency = null;
+    return this.ticketRepo.save(ticket);
+  }
+
+  async getMarketplace() {
+    return this.ticketRepo.find({
+      where: { isListed: true, status: 'valid' },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async buyTicket(
+    ticketId: string,
+    buyerId: string,
+    transactionHash: string,
+  ): Promise<TicketEntity> {
+    const ticket = await this.ticketRepo.findOne({ where: { id: ticketId } });
+    if (!ticket) throw new NotFoundException('Ticket not found');
+    if (!ticket.isListed) throw new BadRequestException('Ticket is not listed for sale');
+    if (ticket.ownerId === buyerId) throw new BadRequestException('Cannot buy your own ticket');
+
+    // Verify on-chain payment
+    let txRecord: Awaited<ReturnType<StellarService['getTransaction']>>;
+    try {
+      txRecord = await this.stellarService.getTransaction(transactionHash);
+    } catch {
+      throw new BadRequestException('Transaction not found on Stellar network');
+    }
+
+    const ops = await this.resolvePaymentOps(txRecord);
+    const sellerWallet = await this.userRepo
+      .findOne({ where: { id: ticket.ownerId }, select: ['stellarPublicKey'] })
+      .then((u) => u?.stellarPublicKey);
+
+    if (!sellerWallet) throw new BadRequestException('Seller has no linked Stellar wallet');
+
+    const matchingOp = ops.find((op) => op.to === sellerWallet);
+    if (!matchingOp) throw new BadRequestException('Payment destination does not match seller wallet');
+
+    const onChainAmount = parseFloat(matchingOp.amount);
+    const expectedAmount = Number(ticket.listingPrice);
+    if (Math.abs(onChainAmount - expectedAmount) > 0.0000001) {
+      throw new BadRequestException(
+        `Incorrect payment amount. Expected ${expectedAmount}, received ${onChainAmount}.`,
+      );
+    }
+
+    const previousOwnerId = ticket.ownerId;
+    ticket.ownerId = buyerId;
+    ticket.isListed = false;
+    ticket.listingPrice = null;
+    ticket.listingCurrency = null;
+    const saved = await this.ticketRepo.save(ticket);
+
+    // Notify previous owner
+    const seller = await this.userRepo.findOne({ where: { id: previousOwnerId } });
+    if (seller) {
+      await this.notificationService.queueTicketSoldEmail({
+        email: seller.email,
+        ticketId: ticket.id,
+        amount: onChainAmount,
+        currency: ticket.listingCurrency ?? 'XLM',
+      });
+    }
+
+    return saved;
+  }
+
+  private async resolvePaymentOps(
+    txRecord: Awaited<ReturnType<StellarService['getTransaction']>>,
+  ): Promise<Array<{ type: string; to: string; amount: string; asset_type: string; asset_code?: string }>> {
+    try {
+      const opsHref = txRecord._links.operations?.href;
+      if (!opsHref) return [];
+      const res = await fetch(opsHref);
+      if (!res.ok) return [];
+      const json = (await res.json()) as { _embedded: { records: any[] } };
+      return json._embedded.records.filter(
+        (op) => op.type === 'payment' || op.type === 'create_account',
+      );
+    } catch {
+      return [];
+    }
   }
 }

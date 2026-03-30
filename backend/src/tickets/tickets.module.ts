@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TicketEntity } from './entities/ticket.entity';
 import { TicketSigningService } from './ticket-signing.service';
+import { TicketPdfService } from './ticket-pdf.service';
 import { Event } from '../events/entities/event.entity';
 import { User } from '../users/entities/user.entity';
 import { TicketsService } from './tickets.service';
