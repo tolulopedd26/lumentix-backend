@@ -29,6 +29,9 @@ import {
 import { EscrowService } from '../payments/services/escrow.service';
 import { RefundService } from '../payments/refunds/refund.service';
 import { CurrenciesService } from '../currencies/currencies.service';
+import { EventImage } from './entities/event-image.entity';
+import { AddEventImageDto } from './dto/add-event-image.dto';
+import { UpdateImageOrderDto } from './dto/update-image-order.dto';
 
 export interface PaginatedResult<T> {
   data: T[];
@@ -58,6 +61,8 @@ export class EventsService {
     private readonly paymentRepository: Repository<Payment>,
     @InjectRepository(SponsorContribution)
     private readonly contributionRepository: Repository<SponsorContribution>,
+    @InjectRepository(EventImage)
+    private readonly eventImageRepo: Repository<EventImage>,
     private readonly eventStateService: EventStateService,
     private readonly notificationService: NotificationService,
     private readonly auditService: AuditService,
@@ -293,6 +298,12 @@ export class EventsService {
         search: `%${search}%`,
       });
     if (category) qb.andWhere('event.category = :category', { category });
+    if (filterDto.categoryIds) {
+      const ids = filterDto.categoryIds.split(',').filter(Boolean);
+      if (ids.length) {
+        qb.innerJoin('event.categories', 'cat', 'cat.id IN (:...ids)', { ids });
+      }
+    }
     if (showAvailableOnly) {
       qb.andWhere(
         '(event.maxAttendees IS NULL OR COALESCE(ticket_counts."soldCount"::int, 0) < event.maxAttendees)',
@@ -514,5 +525,31 @@ export class EventsService {
 
   private async queueLifecycleEmail(event: Event): Promise<void> {
     await this.notificationService.queueLifecycleEmail(event);
+  }
+
+  async addEventImage(eventId: string, organizerId: string, dto: AddEventImageDto): Promise<EventImage> {
+    const event = await this.eventRepository.findOne({ where: { id: eventId } });
+    if (!event) throw new NotFoundException('Event not found');
+    if (event.organizerId !== organizerId) throw new ForbiddenException();
+    const count = await this.eventImageRepo.count({ where: { eventId } });
+    if (count >= 10) throw new BadRequestException('Maximum 10 images per event');
+    if (dto.isPrimary) {
+      await this.eventImageRepo.update({ eventId }, { isPrimary: false });
+    }
+    return this.eventImageRepo.save(this.eventImageRepo.create({ ...dto, eventId }));
+  }
+
+  async updateImageOrder(eventId: string, organizerId: string, dto: UpdateImageOrderDto): Promise<void> {
+    const event = await this.eventRepository.findOne({ where: { id: eventId } });
+    if (!event) throw new NotFoundException('Event not found');
+    if (event.organizerId !== organizerId) throw new ForbiddenException();
+    await Promise.all(dto.images.map(({ id, order }) => this.eventImageRepo.update(id, { order })));
+  }
+
+  async deleteEventImage(eventId: string, imageId: string, organizerId: string): Promise<void> {
+    const event = await this.eventRepository.findOne({ where: { id: eventId } });
+    if (!event) throw new NotFoundException('Event not found');
+    if (event.organizerId !== organizerId) throw new ForbiddenException();
+    await this.eventImageRepo.delete({ id: imageId, eventId });
   }
 }

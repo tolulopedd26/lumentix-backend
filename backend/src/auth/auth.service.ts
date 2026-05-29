@@ -183,6 +183,27 @@ export class AuthService {
     await this.refreshTokenRepository.save(tokenRecord);
   }
 
+  async findOrCreateGoogleUser(googleUser: {
+    googleId: string;
+    email: string;
+    displayName?: string;
+  }): Promise<{ accessToken: string; refreshToken: string }> {
+    let user = await this.usersService.findByGoogleId(googleUser.googleId);
+    if (!user) {
+      user = await this.usersService.findByEmail(googleUser.email);
+      if (user) {
+        await this.usersService.updateGoogleId(user.id, googleUser.googleId);
+      } else {
+        user = await this.usersService.createGoogleUser({
+          email: googleUser.email,
+          googleId: googleUser.googleId,
+          displayName: googleUser.displayName,
+        });
+      }
+    }
+    return this.signToken((user as any).id, (user as any).role);
+  }
+
   private async signToken(userId: string, role: string): Promise<{ accessToken: string; refreshToken: string }> {
     const payload: { sub: string; role: string } = { sub: userId, role };
     const accessToken = this.jwtService.sign(payload);

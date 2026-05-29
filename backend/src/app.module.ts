@@ -34,6 +34,7 @@ import { ReviewsModule } from './reviews/reviews.module';
 import { VenuesModule } from './venues/venues.module';
 import { GamificationModule } from './gamification/gamification.module';
 import { SchedulingModule } from './scheduling/scheduling.module';
+import { CategoriesModule } from './categories/categories.module';
 
 
 @Module({
@@ -112,6 +113,7 @@ import { SchedulingModule } from './scheduling/scheduling.module';
     RegistrationsModule,
     AnalyticsModule,
     SchedulingModule,
+    CategoriesModule,
 
   ],
   controllers: [AppController],
