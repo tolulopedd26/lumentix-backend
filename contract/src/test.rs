@@ -424,8 +424,14 @@ fn test_batch_purchase_ten_tickets_reduces_availability_charges_tokens_and_maps_
 
     assert_eq!(ticket_ids.len(), 10);
     assert_eq!(event.max_tickets - event.tickets_sold, 40);
-    assert_eq!(before_buyer_balance - token_client.balance(&buyer), total_price);
-    assert_eq!(token_client.balance(&contract_id) - before_contract_balance, total_price);
+    assert_eq!(
+        before_buyer_balance - token_client.balance(&buyer),
+        total_price
+    );
+    assert_eq!(
+        token_client.balance(&contract_id) - before_contract_balance,
+        total_price
+    );
 
     for i in 0..10u32 {
         let ticket_id = ticket_ids.get(i).unwrap();
@@ -460,7 +466,10 @@ fn test_batch_purchase_exceeding_venue_capacity_fails_without_partial_mints() {
     let result = client.try_batch_purchase_tickets(&event_id, &10u32, &buyer);
     assert_eq!(result, Err(Ok(LumentixError::EventSoldOut)));
     assert_eq!(client.get_event(&event_id).tickets_sold, 0);
-    assert_eq!(client.try_get_ticket_info(&1u64), Err(Ok(LumentixError::TicketNotFound)));
+    assert_eq!(
+        client.try_get_ticket_info(&1u64),
+        Err(Ok(LumentixError::TicketNotFound))
+    );
 }
 
 // ============================================================================
@@ -2072,12 +2081,18 @@ fn test_get_events_by_status_mixed_statuses_filters_correctly() {
     let published_events = client.get_events_by_status(&EventStatus::Published);
     assert_eq!(published_events.len(), 1);
     assert_eq!(published_events.get(0).unwrap().id, published_event);
-    assert_eq!(published_events.get(0).unwrap().status, EventStatus::Published);
+    assert_eq!(
+        published_events.get(0).unwrap().status,
+        EventStatus::Published
+    );
 
     let cancelled_events = client.get_events_by_status(&EventStatus::Cancelled);
     assert_eq!(cancelled_events.len(), 1);
     assert_eq!(cancelled_events.get(0).unwrap().id, cancelled_event);
-    assert_eq!(cancelled_events.get(0).unwrap().status, EventStatus::Cancelled);
+    assert_eq!(
+        cancelled_events.get(0).unwrap().status,
+        EventStatus::Cancelled
+    );
 }
 
 #[test]
@@ -3495,7 +3510,10 @@ fn test_escrow_balance_zero_before_any_tickets_sold() {
 
     // Escrow balance should be 0
     let escrow_balance = client.get_escrow_balance(&event_id);
-    assert_eq!(escrow_balance, 0i128, "Escrow balance should be 0 before any tickets are sold");
+    assert_eq!(
+        escrow_balance, 0i128,
+        "Escrow balance should be 0 before any tickets are sold"
+    );
 }
 
 #[test]
@@ -3679,7 +3697,10 @@ fn test_escrow_balance_with_ten_percent_platform_fee() {
 
     // Verify platform balance is 40
     let platform_balance = client.get_platform_balance();
-    assert_eq!(platform_balance, 40i128, "Platform should collect 40 in fees");
+    assert_eq!(
+        platform_balance, 40i128,
+        "Platform should collect 40 in fees"
+    );
 }
 
 #[test]
@@ -3733,15 +3754,14 @@ fn test_escrow_balance_multiple_events_independent() {
     );
 
     // Total escrow across both events
-    assert_eq!(
-        escrow_1 + escrow_2,
-        665i128,
-        "Total escrow should be 665"
-    );
+    assert_eq!(escrow_1 + escrow_2, 665i128, "Total escrow should be 665");
 
     // Verify platform collected total fees: 15 + 20 = 35
     let platform_balance = client.get_platform_balance();
-    assert_eq!(platform_balance, 35i128, "Platform should collect 35 total fees");
+    assert_eq!(
+        platform_balance, 35i128,
+        "Platform should collect 35 total fees"
+    );
 }
 
 #[test]
@@ -4331,7 +4351,6 @@ fn test_get_tickets_by_buyer_populates_all_ticket_fields() {
     assert_eq!(listed.used, ticket_info.used);
     assert_eq!(listed.refunded, ticket_info.refunded);
 }
-
 
 #[test]
 fn test_concurrent_event_operations_multiple_organizers() {
@@ -5131,7 +5150,11 @@ fn test_resume_ticket_sales_emits_event_sales_resumed() {
                 if topic_sym.as_slice() == b"salesrsm" {
                     found = true;
                     if let xdr::ScVal::Vec(Some(data_vec)) = &body.data {
-                        assert_eq!(data_vec.len(), 3, "EventSalesResumed must carry (event_id, organizer, timestamp)");
+                        assert_eq!(
+                            data_vec.len(),
+                            3,
+                            "EventSalesResumed must carry (event_id, organizer, timestamp)"
+                        );
                     } else {
                         panic!("Expected Vec data for EventSalesResumed");
                     }
@@ -5308,7 +5331,9 @@ fn test_set_event_capacity() {
     client.update_event_status(&event_id, &EventStatus::Published, &organizer);
 
     // Increase to 200
-    assert!(client.try_set_event_capacity(&organizer, &event_id, &200u32).is_ok());
+    assert!(client
+        .try_set_event_capacity(&organizer, &event_id, &200u32)
+        .is_ok());
 
     // Buy 50
     for _ in 0..5 {
@@ -5320,7 +5345,9 @@ fn test_set_event_capacity() {
     assert_eq!(res, Err(Ok(LumentixError::CapacityExceeded)));
 
     // Decrease to 50 should succeed
-    assert!(client.try_set_event_capacity(&organizer, &event_id, &50u32).is_ok());
+    assert!(client
+        .try_set_event_capacity(&organizer, &event_id, &50u32)
+        .is_ok());
 }
 
 #[test]
@@ -5624,12 +5651,18 @@ fn test_batch_check_in_different_user_succeeds_if_same_organizer() {
 
     // Batch check-in should succeed since all tickets belong to the same event with same organizer
     let result = client.try_batch_use_tickets(&ticket_ids, &organizer);
-    assert!(result.is_ok(), "Batch check-in should succeed when organizer is authorized for all tickets");
+    assert!(
+        result.is_ok(),
+        "Batch check-in should succeed when organizer is authorized for all tickets"
+    );
 
     // Verify all tickets were marked as used
     for ticket_id in ticket_ids.iter() {
         let ticket = client.get_ticket_info(&ticket_id);
-        assert!(ticket.used, "All tickets should be marked as used after successful batch operation");
+        assert!(
+            ticket.used,
+            "All tickets should be marked as used after successful batch operation"
+        );
     }
 }
 
@@ -5659,7 +5692,10 @@ fn test_already_used_ids_in_batch_gracefully_reject_tx() {
     for i in 1..ticket_ids.len() {
         let ticket_id = ticket_ids.get(i).unwrap();
         let ticket = client.get_ticket_info(&ticket_id);
-        assert!(!ticket.used, "Unused tickets should remain unused after failed batch operation");
+        assert!(
+            !ticket.used,
+            "Unused tickets should remain unused after failed batch operation"
+        );
     }
 }
 
@@ -5884,7 +5920,10 @@ fn test_valid_organizer_successfully_updates_draft_event_fields() {
     // Verify the updates were applied
     let event = client.get_event(&event_id);
     assert_eq!(event.name, String::from_str(&env, "Updated Event Name"));
-    assert_eq!(event.description, String::from_str(&env, "Updated Description with metadata"));
+    assert_eq!(
+        event.description,
+        String::from_str(&env, "Updated Description with metadata")
+    );
     assert_eq!(event.location, String::from_str(&env, "Updated Location"));
 }
 
@@ -5961,10 +6000,7 @@ fn test_modifying_details_post_publish_correctly_surfaces_panic() {
 /// Helper: find the first ContractEvent whose first topic symbol equals `needle`.
 /// Returns the raw data ScVal for further inspection.
 /// Used by both the #539 (evtmeta) and #541 (capchng) test suites.
-fn find_event_by_topic(
-    env: &Env,
-    needle: &[u8],
-) -> Option<xdr::ScVal> {
+fn find_event_by_topic(env: &Env, needle: &[u8]) -> Option<xdr::ScVal> {
     for xdr_event in env.events().all().events() {
         if let xdr::ContractEventBody::V0(body) = &xdr_event.body {
             if let Some(xdr::ScVal::Symbol(sym)) = body.topics.first() {
@@ -6001,8 +6037,7 @@ fn test_event_metadata_updated_emits_correct_event_id() {
         &50u32,
     );
 
-    let data = find_event_by_topic(&env, b"evtmeta")
-        .expect("EventMetadataUpdated not emitted");
+    let data = find_event_by_topic(&env, b"evtmeta").expect("EventMetadataUpdated not emitted");
 
     if let xdr::ScVal::Vec(Some(fields)) = data {
         // field[0] = event_id (u64)
@@ -6010,7 +6045,10 @@ fn test_event_metadata_updated_emits_correct_event_id() {
             xdr::ScVal::U64(v) => *v,
             other => panic!("expected U64 event_id, got {:?}", other),
         };
-        assert_eq!(emitted_id, event_id, "emitted event_id must match the updated event");
+        assert_eq!(
+            emitted_id, event_id,
+            "emitted event_id must match the updated event"
+        );
     } else {
         panic!("EventMetadataUpdated data must be a Vec");
     }
@@ -6040,8 +6078,7 @@ fn test_event_metadata_updated_emits_correct_organizer() {
         &50u32,
     );
 
-    let data = find_event_by_topic(&env, b"evtmeta")
-        .expect("EventMetadataUpdated not emitted");
+    let data = find_event_by_topic(&env, b"evtmeta").expect("EventMetadataUpdated not emitted");
 
     if let xdr::ScVal::Vec(Some(fields)) = data {
         // field[1] = organizer (Address) — encoded as ScVal::Address
@@ -6080,8 +6117,7 @@ fn test_event_metadata_updated_emits_correct_time_updated() {
         &50u32,
     );
 
-    let data = find_event_by_topic(&env, b"evtmeta")
-        .expect("EventMetadataUpdated not emitted");
+    let data = find_event_by_topic(&env, b"evtmeta").expect("EventMetadataUpdated not emitted");
 
     if let xdr::ScVal::Vec(Some(fields)) = data {
         // field[2] = time_updated (u64) – must equal the ledger timestamp at call time
@@ -6214,14 +6250,14 @@ fn test_event_metadata_updated_successive_updates_emit_independent_events_with_f
     );
 
     // Both emissions must be present – collect all "evtmeta" events in order
-    let mut timestamps: Vec<u64> = Vec::new();
+    let mut timestamps: Vec<u64> = Vec::new(&env);
     for xdr_event in env.events().all().events() {
         if let xdr::ContractEventBody::V0(body) = &xdr_event.body {
             if let Some(xdr::ScVal::Symbol(sym)) = body.topics.first() {
                 if sym.as_slice() == b"evtmeta" {
                     if let xdr::ScVal::Vec(Some(fields)) = &body.data {
                         if let xdr::ScVal::U64(ts) = &fields[2] {
-                            timestamps.push(*ts);
+                            timestamps.push_back(*ts);
                         }
                     }
                 }
@@ -6229,9 +6265,16 @@ fn test_event_metadata_updated_successive_updates_emit_independent_events_with_f
         }
     }
 
-    assert_eq!(timestamps.len(), 2, "Two successive updates must emit exactly two events");
+    assert_eq!(
+        timestamps.len(),
+        2,
+        "Two successive updates must emit exactly two events"
+    );
     assert_eq!(timestamps[0], 1000, "First event time_updated must be 1000");
-    assert_eq!(timestamps[1], 2000, "Second event time_updated must be 2000");
+    assert_eq!(
+        timestamps[1], 2000,
+        "Second event time_updated must be 2000"
+    );
 }
 
 // ============================================================================
@@ -6272,8 +6315,7 @@ fn test_event_capacity_changed_emits_correct_event_id() {
 
     client.set_event_capacity(&organizer, &event_id, &300u32);
 
-    let data = find_event_by_topic(&env, b"capchng")
-        .expect("EventCapacityChanged not emitted");
+    let data = find_event_by_topic(&env, b"capchng").expect("EventCapacityChanged not emitted");
 
     if let xdr::ScVal::Vec(Some(fields)) = data {
         let emitted_id = match &fields[0] {
@@ -6304,8 +6346,7 @@ fn test_event_capacity_changed_emits_correct_old_capacity() {
 
     client.set_event_capacity(&organizer, &event_id, &250u32);
 
-    let data = find_event_by_topic(&env, b"capchng")
-        .expect("EventCapacityChanged not emitted");
+    let data = find_event_by_topic(&env, b"capchng").expect("EventCapacityChanged not emitted");
 
     if let xdr::ScVal::Vec(Some(fields)) = data {
         let old_cap = match &fields[1] {
@@ -6334,8 +6375,7 @@ fn test_event_capacity_changed_emits_correct_new_capacity() {
 
     client.set_event_capacity(&organizer, &event_id, &requested_new);
 
-    let data = find_event_by_topic(&env, b"capchng")
-        .expect("EventCapacityChanged not emitted");
+    let data = find_event_by_topic(&env, b"capchng").expect("EventCapacityChanged not emitted");
 
     if let xdr::ScVal::Vec(Some(fields)) = data {
         let new_cap = match &fields[2] {
@@ -6435,22 +6475,32 @@ fn test_event_capacity_changed_successive_calls_emit_independent_events_with_cor
     client.set_event_capacity(&organizer, &event_id, &150u32);
 
     // Collect all "capchng" events in emission order
-    let mut pairs: Vec<(u32, u32)> = Vec::new(); // (old, new)
+    let mut pairs: Vec<(u32, u32)> = Vec::new(&env); // (old, new)
     for xdr_event in env.events().all().events() {
         if let xdr::ContractEventBody::V0(body) = &xdr_event.body {
             if let Some(xdr::ScVal::Symbol(sym)) = body.topics.first() {
                 if sym.as_slice() == b"capchng" {
                     if let xdr::ScVal::Vec(Some(fields)) = &body.data {
-                        let old = match &fields[1] { xdr::ScVal::U32(v) => *v, _ => 0 };
-                        let new = match &fields[2] { xdr::ScVal::U32(v) => *v, _ => 0 };
-                        pairs.push((old, new));
+                        let old = match &fields[1] {
+                            xdr::ScVal::U32(v) => *v,
+                            _ => 0,
+                        };
+                        let new = match &fields[2] {
+                            xdr::ScVal::U32(v) => *v,
+                            _ => 0,
+                        };
+                        pairs.push_back((old, new));
                     }
                 }
             }
         }
     }
 
-    assert_eq!(pairs.len(), 2, "two successive capacity changes must emit exactly two events");
+    assert_eq!(
+        pairs.len(),
+        2,
+        "two successive capacity changes must emit exactly two events"
+    );
     assert_eq!(pairs[0], (50, 200), "first event: old=50 new=200");
     assert_eq!(pairs[1], (200, 150), "second event: old=200 new=150");
 }
