@@ -14,6 +14,7 @@ export interface WalletState {
   publicKey: string | null;
   walletType: WalletType | null;
   network: NetworkType;
+  balance: string | null;
   isLoading: boolean;
   error: string | null;
 }
@@ -22,4 +23,8 @@ export interface WalletContextType extends WalletState {
   connect: (walletType: WalletType) => Promise<void>;
   disconnect: () => void;
   switchNetwork: (network: NetworkType) => Promise<void>;
+  getBalance: () => Promise<void>;
+  // legacy aliases kept for backward compat
+  connectWallet: () => Promise<void>;
+  disconnectWallet: () => void;
 }
